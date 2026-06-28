@@ -2,25 +2,239 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #111111;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-plus-jakarta);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-bg-base: #ffffff;
+  --color-soft: #f6f8f6;
+  --color-surface: #ffffff;
+  --color-primary: #25d366;
+  --color-primary-dark: #128c7e;
+  --color-accent-red: #e53935;
+  --color-accent-purple: #7c5cfc;
+  --color-accent-blue: #2196f3;
+  --color-text-primary: #111111;
+  --color-text-muted: #888888;
+  --color-text-light: #aaaaaa;
+  --radius-card: 20px;
+  --radius-pill: 9999px;
+  --radius-icon: 18px;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-float-slow: float 8s ease-in-out infinite;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-plus-jakarta), Arial, Helvetica, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(-7px);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scenario-cycle {
+  0% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+  4% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  28% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  33% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes status-cycle {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  4% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  26% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  31% {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes hero-use-case-track {
+  0%,
+  14% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  17%,
+  19% {
+    opacity: 0;
+    transform: translateY(-20%);
+  }
+  22%,
+  34% {
+    opacity: 1;
+    transform: translateY(-20%);
+  }
+  37%,
+  39% {
+    opacity: 0;
+    transform: translateY(-40%);
+  }
+  42%,
+  54% {
+    opacity: 1;
+    transform: translateY(-40%);
+  }
+  57%,
+  59% {
+    opacity: 0;
+    transform: translateY(-60%);
+  }
+  62%,
+  74% {
+    opacity: 1;
+    transform: translateY(-60%);
+  }
+  77%,
+  79% {
+    opacity: 0;
+    transform: translateY(-80%);
+  }
+  82%,
+  94% {
+    opacity: 1;
+    transform: translateY(-80%);
+  }
+  97% {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  98% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-use-case-track {
+  animation: hero-use-case-track 15s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.rotating-scenario,
+.rotating-status,
+.rotating-title {
+  opacity: 0;
+}
+
+.rotating-scenario {
+  animation: scenario-cycle 15s linear infinite;
+}
+
+.rotating-status,
+.rotating-title {
+  animation: status-cycle 15s linear infinite;
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .rotating-scenario,
+  .rotating-status,
+  .rotating-title,
+  .hero-use-case-track {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .rotating-scenario:not(:first-child),
+  .rotating-status:not(:first-child),
+  .rotating-title:not(:first-child) {
+    display: none !important;
+  }
+}
+
+#radar-map svg {
+  width: 100%;
+  height: auto;
+}
+
+#radar-map svg path {
+  fill: #edf3f0;
+  stroke: #ffffff;
+  stroke-width: 0.8px;
+  transition: fill 0.25s ease;
+}
+
+#radar-map svg path:hover {
+  fill: #dbebe2;
 }
