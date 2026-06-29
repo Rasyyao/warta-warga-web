@@ -5,6 +5,32 @@ import { createPortal } from "react-dom";
 import TAG_GPS_JSON from "@/app/lib/indonesia-coordinates.json";
 
 const PAGE_SIZE = 10;
+const COSINE_CLUSTER_THRESHOLD = 0.72;
+const COSINE_CLUSTER_THRESHOLD_PERCENT = Math.round(COSINE_CLUSTER_THRESHOLD * 100);
+
+const INDONESIAN_STOPWORDS = new Set([
+  "ada",
+  "akan",
+  "atau",
+  "bagi",
+  "bisa",
+  "dalam",
+  "dan",
+  "dari",
+  "di",
+  "dengan",
+  "ini",
+  "itu",
+  "jadi",
+  "jangan",
+  "ke",
+  "kita",
+  "melalui",
+  "mohon",
+  "pada",
+  "untuk",
+  "yang",
+]);
 
 /**
  * Resolve a wilayah_tag string to GPS coords.
@@ -39,11 +65,17 @@ interface Report {
   dasarVerifikasi?: string;
   teksPeringatan?: string;
   modusKey: string | null;
+  clusterReason: "modus_key" | "cosine" | "similar_text" | null;
 }
 
 interface ClusteredReport extends Report {
   clusterIds: string[];
   totalReporters: number;
+  similarityScore: number | null;
+}
+
+interface VisualCluster extends ClusteredReport {
+  members: Array<Report & { similarityToRepresentative: number | null }>;
 }
 
 type SortKey = "newest" | "oldest" | "frequent";
@@ -61,6 +93,7 @@ interface DashboardReport {
   isi_ringkas: string;
   jumlah_serupa: number | null;
   modus_key: string | null;
+  cluster_reason: "modus_key" | "cosine" | "similar_text" | null;
   timestamp: string;
   wilayah_tag: string;
   dasar_verifikasi: string | null;
@@ -107,6 +140,96 @@ function StatusBadge({ status }: { status: Report["status"] }) {
   );
 }
 
+function ClusterReasonBadge({
+  reason,
+  score,
+}: {
+  reason: Report["clusterReason"];
+  score?: number | null;
+}) {
+  if (!reason || reason === "modus_key") return null;
+  if (reason === "cosine" && score != null && score < COSINE_CLUSTER_THRESHOLD_PERCENT) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-700 whitespace-nowrap">
+        Review manual
+      </span>
+    );
+  }
+  const map = {
+    cosine:       { bg: "bg-violet-100", text: "text-violet-700", label: "Cosine cocok" },
+    similar_text: { bg: "bg-sky-100",    text: "text-sky-700",    label: "Teks Mirip" },
+  } as const;
+  const c = map[reason];
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold whitespace-nowrap ${c.bg} ${c.text}`}>
+      <svg className="size-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+      </svg>
+      {c.label}
+    </span>
+  );
+}
+
+function SimilarityBadge({ score }: { score: number | null | undefined }) {
+  if (score == null) return null;
+  const tone =
+    score >= 88
+      ? "bg-primary/10 text-primary"
+      : score >= COSINE_CLUSTER_THRESHOLD_PERCENT
+      ? "bg-violet-100 text-violet-700"
+      : "bg-amber-50 text-amber-700";
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold whitespace-nowrap ${tone}`}>
+      {score}% kemiripan teks
+    </span>
+  );
+}
+
+function SimilarityLevelBadge({ score }: { score: number | null | undefined }) {
+  if (score == null) return null;
+  if (score >= 88) {
+    return (
+      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">
+        Kuat
+      </span>
+    );
+  }
+  if (score >= COSINE_CLUSTER_THRESHOLD_PERCENT) {
+    return (
+      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-bold text-violet-700">
+        Masuk batas
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-700">
+      Di bawah batas
+    </span>
+  );
+}
+
+function SimilarityMeter({ score }: { score: number | null | undefined }) {
+  const value = score ?? 0;
+  const width = score == null ? 0 : Math.max(8, Math.min(100, value));
+  const bar =
+    value >= 88
+      ? "bg-primary"
+      : value >= COSINE_CLUSTER_THRESHOLD_PERCENT
+      ? "bg-accent-purple"
+      : "bg-amber-400";
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/[0.06]">
+        <div className={`h-full rounded-full ${bar}`} style={{ width: `${width}%` }} />
+      </div>
+      <span className="w-10 text-right text-[10px] font-extrabold text-text-muted">
+        {score == null ? "-" : `${score}%`}
+      </span>
+    </div>
+  );
+}
+
 function StatCard({
   label,
   value,
@@ -148,6 +271,67 @@ function isWithinLastHours(rawTimestamp: string, hours: number) {
   return Date.now() - time <= hours * 60 * 60 * 1000;
 }
 
+function tokenizeMessage(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, " tautan ")
+    .replace(/\b\d{3,}\b/g, " angka ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length > 2 && !INDONESIAN_STOPWORDS.has(token));
+}
+
+function toTermFrequency(text: string) {
+  const terms = tokenizeMessage(text);
+  return terms.reduce((acc, term) => {
+    acc.set(term, (acc.get(term) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
+}
+
+function cosineSimilarity(a: string, b: string) {
+  const left = toTermFrequency(a);
+  const right = toTermFrequency(b);
+  if (left.size === 0 || right.size === 0) return 0;
+
+  let dot = 0;
+  let leftMagnitude = 0;
+  let rightMagnitude = 0;
+
+  left.forEach((value, term) => {
+    leftMagnitude += value * value;
+    dot += value * (right.get(term) ?? 0);
+  });
+  right.forEach((value) => {
+    rightMagnitude += value * value;
+  });
+
+  if (leftMagnitude === 0 || rightMagnitude === 0) return 0;
+  return dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude));
+}
+
+function getBestSimilarity(report: Report, group: Report[]) {
+  return group.reduce((best, candidate) => {
+    const score = cosineSimilarity(report.message, candidate.message);
+    return score > best ? score : best;
+  }, 0);
+}
+
+function getAverageClusterSimilarity(group: Report[]) {
+  if (group.length < 2) return null;
+  let total = 0;
+  let comparisons = 0;
+
+  for (let i = 0; i < group.length; i += 1) {
+    for (let j = i + 1; j < group.length; j += 1) {
+      total += cosineSimilarity(group[i].message, group[j].message);
+      comparisons += 1;
+    }
+  }
+
+  return comparisons > 0 ? Math.round((total / comparisons) * 100) : null;
+}
+
 function createVerificationSummary(report: Report) {
   const repeated = report.similarCount > 1 ? `Sudah muncul ${report.similarCount} kali pada laporan serupa.` : "Belum banyak duplikasi laporan.";
   return [
@@ -177,6 +361,7 @@ export default function ReportsPage() {
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [broadcastNotice, setBroadcastNotice] = useState<string | null>(null);
   const [broadcastedIds, setBroadcastedIds] = useState<Set<string>>(() => new Set());
+  const [broadcastingClusterId, setBroadcastingClusterId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
@@ -254,6 +439,7 @@ export default function ReportsPage() {
                 message: r.isi_ringkas,
                 similarCount: Number(r.jumlah_serupa ?? 1),
                 modusKey: r.modus_key ?? null,
+                clusterReason: r.cluster_reason ?? null,
                 status:
                   r.status_approval === "disetujui"
                     ? "VERIFIED"
@@ -312,28 +498,71 @@ export default function ReportsPage() {
     [reports]
   );
 
-  // Group reports with same modus_key + wilayah_tag + category into clusters.
+  // Group exact modus matches first, then use local cosine similarity as fallback.
   const clusteredReports = useMemo((): ClusteredReport[] => {
-    const groups = new Map<string, Report[]>();
+    const groups: Report[][] = [];
+    const exactGroups = new Map<string, Report[]>();
+
     for (const r of reports) {
-      const mKey = r.modusKey || `_raw_${r.category}_${r.message.slice(0, 40)}`;
-      const key = `${mKey}::${r.wilayahTag}::${r.category}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(r);
+      const exactKey = r.modusKey ? `${r.modusKey}::${r.wilayahTag}::${r.category}` : null;
+      const exactGroup = exactKey ? exactGroups.get(exactKey) : null;
+      if (exactGroup) {
+        exactGroup.push(r);
+        continue;
+      }
+
+      let bestGroup: Report[] | null = null;
+      let bestScore = 0;
+
+      for (const group of groups) {
+        const representative = group[0];
+        const hasConflictingModus =
+          Boolean(r.modusKey && representative.modusKey && r.modusKey !== representative.modusKey);
+        if (
+          hasConflictingModus ||
+          representative.category !== r.category ||
+          representative.wilayahTag.toLowerCase() !== r.wilayahTag.toLowerCase()
+        ) {
+          continue;
+        }
+
+        const score = getBestSimilarity(r, group);
+        if (score > bestScore) {
+          bestScore = score;
+          bestGroup = group;
+        }
+      }
+
+      if (bestGroup && bestScore >= COSINE_CLUSTER_THRESHOLD) {
+        bestGroup.push({ ...r, clusterReason: r.clusterReason ?? "cosine" });
+        if (exactKey) exactGroups.set(exactKey, bestGroup);
+      } else {
+        const newGroup = [r];
+        groups.push(newGroup);
+        if (exactKey) exactGroups.set(exactKey, newGroup);
+      }
     }
-    return Array.from(groups.values()).map((group): ClusteredReport => {
+
+    return groups.map((group): ClusteredReport => {
       const rep = group.reduce((best, r) => r.similarCount > best.similarCount ? r : best);
       const totalReporters = group.reduce((sum, r) => sum + r.similarCount, 0);
       // Cluster status: if any PENDING → PENDING; all VERIFIED → VERIFIED; else DISMISSED
       const hasPending = group.some(r => r.status === "PENDING");
       const allVerified = group.every(r => r.status === "VERIFIED");
       const clusterStatus: Report["status"] = hasPending ? "PENDING" : allVerified ? "VERIFIED" : "DISMISSED";
+      // Prefer 'cosine' over 'similar_text' over null as the cluster reason label
+      const clusterReason =
+        group.find(r => r.clusterReason === "cosine")?.clusterReason ??
+        group.find(r => r.clusterReason === "similar_text")?.clusterReason ??
+        (group.length > 1 && !group.every((r) => r.modusKey && r.modusKey === group[0].modusKey) ? "cosine" : rep.clusterReason);
       return {
         ...rep,
         status: clusterStatus,
         similarCount: totalReporters,
         clusterIds: group.map(r => r.id),
         totalReporters,
+        clusterReason,
+        similarityScore: getAverageClusterSimilarity(group),
       };
     });
   }, [reports]);
@@ -434,14 +663,6 @@ export default function ReportsPage() {
     [selectedRegionReports]
   );
 
-  const selectedRegionFrequentReports = useMemo(
-    () =>
-      [...selectedRegionReports]
-        .sort((a, b) => b.similarCount - a.similarCount)
-        .slice(0, 5),
-    [selectedRegionReports]
-  );
-
   const selectedRegionStatusCounts = useMemo(
     () =>
       selectedRegionReports.reduce(
@@ -453,6 +674,68 @@ export default function ReportsPage() {
       ),
     [selectedRegionReports]
   );
+
+  const selectedRegionClusters = useMemo((): VisualCluster[] => {
+    if (!selectedRegion) return [];
+    return clusteredReports
+      .filter((cluster) => cluster.wilayahTag.toLowerCase() === selectedRegion.toLowerCase())
+      .map((cluster) => {
+        const members = cluster.clusterIds
+          .map((id) => reports.find((report) => report.id === id))
+          .filter((report): report is Report => Boolean(report))
+          .map((report) => ({
+            ...report,
+            similarityToRepresentative:
+              report.id === cluster.id ? 100 : Math.round(cosineSimilarity(cluster.message, report.message) * 100),
+          }))
+          .sort((a, b) => (b.similarityToRepresentative ?? 0) - (a.similarityToRepresentative ?? 0));
+
+        return {
+          ...cluster,
+          members,
+        };
+      })
+      .sort((a, b) => {
+        const groupedDelta = Number(b.clusterIds.length > 1) - Number(a.clusterIds.length > 1);
+        if (groupedDelta !== 0) return groupedDelta;
+        if ((b.similarityScore ?? 0) !== (a.similarityScore ?? 0)) {
+          return (b.similarityScore ?? 0) - (a.similarityScore ?? 0);
+        }
+        return b.totalReporters - a.totalReporters;
+      });
+  }, [clusteredReports, reports, selectedRegion]);
+
+  const selectedRegionClusterStats = useMemo(() => {
+    const groupedClusters = selectedRegionClusters.filter((cluster) => cluster.clusterIds.length > 1);
+    const cosineClusters = selectedRegionClusters.filter(
+      (cluster) =>
+        cluster.clusterReason === "cosine" &&
+        (cluster.similarityScore ?? 0) >= COSINE_CLUSTER_THRESHOLD_PERCENT
+    );
+    const reviewClusters = selectedRegionClusters.filter(
+      (cluster) => cluster.clusterIds.length > 1 && (cluster.similarityScore ?? 0) < COSINE_CLUSTER_THRESHOLD_PERCENT
+    );
+    const groupedReports = groupedClusters.reduce((sum, cluster) => sum + cluster.clusterIds.length, 0);
+    const strongestScore = selectedRegionClusters.reduce(
+      (best, cluster) => Math.max(best, cluster.similarityScore ?? 0),
+      0
+    );
+
+    return {
+      groupedClusters: groupedClusters.length,
+      cosineClusters: cosineClusters.length,
+      reviewClusters: reviewClusters.length,
+      groupedReports,
+      strongestScore,
+    };
+  }, [selectedRegionClusters]);
+
+  const visualRegionClusters = useMemo(() => {
+    const grouped = selectedRegionClusters.filter(
+      (cluster) => cluster.clusterIds.length > 1 || cluster.clusterReason === "cosine"
+    );
+    return (grouped.length > 0 ? grouped : selectedRegionClusters).slice(0, 4);
+  }, [selectedRegionClusters]);
 
   const reportStats = useMemo(() => {
     const categoryCounts = reports.reduce<Record<Report["category"], number>>(
@@ -474,6 +757,11 @@ export default function ReportsPage() {
     const topRegion = Object.entries(regionalCounts).sort((a, b) => b[1] - a[1])[0] ?? null;
     const topCategory = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0] ?? null;
     const repeatedReports = reports.filter((report) => report.similarCount > 1).length;
+    const cosineClusters = clusteredReports.filter(
+      (report) =>
+        report.clusterReason === "cosine" &&
+        (report.similarityScore ?? 0) >= COSINE_CLUSTER_THRESHOLD_PERCENT
+    ).length;
 
     return {
       total: reports.length,
@@ -483,8 +771,9 @@ export default function ReportsPage() {
       topRegion,
       topCategory,
       repeatedReports,
+      cosineClusters,
     };
-  }, [reports, regionalCounts]);
+  }, [clusteredReports, reports, regionalCounts]);
 
   const handleVerifyWithParams = async (
     clusterIds: string[],
@@ -540,6 +829,38 @@ export default function ReportsPage() {
       return next;
     });
     setBroadcastNotice(`Draft broadcast untuk ${formatWilayah(report.wilayahTag)} sudah dibuat dan disalin.`);
+  };
+
+  const handleBroadcastCluster = async (cluster: ClusteredReport) => {
+    setBroadcastingClusterId(cluster.id);
+    try {
+      const resp = await fetch("/api/reports/broadcast-cluster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: cluster.clusterIds.map(Number),
+          wilayahTag: cluster.wilayahTag,
+          teksPeringatan: cluster.teksPeringatan || "",
+          kategori: cluster.category,
+          total: cluster.totalReporters,
+          deskripsi: cluster.message,
+        }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        setBroadcastNotice(
+          data.message ||
+          `✅ ${data.approved ?? cluster.clusterIds.length} laporan disetujui. Bot akan generate poster & broadcast ke grup dalam ≤5 menit.`
+        );
+        fetchReportsData();
+      } else {
+        setBroadcastNotice(`Gagal: ${data.error || "unknown error"}`);
+      }
+    } catch {
+      setBroadcastNotice("Gagal menghubungi server. Coba lagi.");
+    } finally {
+      setBroadcastingClusterId(null);
+    }
   };
 
   const handleDismiss = async (clusterIds: string[]) => {
@@ -635,7 +956,7 @@ export default function ReportsPage() {
           </button>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <StatCard
             label="Total laporan"
             value={reportStats.total}
@@ -662,6 +983,12 @@ export default function ReportsPage() {
                 : "Belum ada wilayah aktif."
             }
             tone="text-accent-blue"
+          />
+          <StatCard
+            label="Klaster cosine"
+            value={reportStats.cosineClusters}
+            helper={`Batas gabung otomatis ${COSINE_CLUSTER_THRESHOLD_PERCENT}% kemiripan teks.`}
+            tone="text-accent-purple"
           />
         </div>
 
@@ -690,10 +1017,10 @@ export default function ReportsPage() {
             <div className="rounded-2xl bg-[#fbfcfb] px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Fokus hari ini</p>
               <p className="mt-1 text-sm font-extrabold text-text-primary">
-                {reportStats.last24Hours > 0 ? "Prioritaskan validasi baru" : "Tidak ada laporan baru"}
+                {reportStats.cosineClusters > 0 ? "Cek klaster cosine" : reportStats.last24Hours > 0 ? "Prioritaskan validasi baru" : "Tidak ada laporan baru"}
               </p>
               <p className="mt-1 text-[11px] text-text-light">
-                Gunakan peta untuk zoom ke wilayah dan cek laporan 24 jam terakhir.
+                Gunakan label kemiripan untuk melihat laporan yang digabung dari isi pesan.
               </p>
             </div>
           </div>
@@ -757,100 +1084,124 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4 xl:grid-cols-2">
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <h5 className="text-xs font-extrabold text-text-primary">Laporan 24 Jam Terakhir</h5>
-                <div className="mt-3 space-y-3">
-                  {selectedRegionLast24Hours.slice(0, 4).map((report) => (
-                    <div key={report.id} className="rounded-xl border border-black/[0.05] p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <CategoryBadge cat={report.category} />
-                            <StatusBadge status={report.status} />
-                          </div>
-                          <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-text-muted">{report.message}</p>
-                          <p className="mt-1 text-[10px] font-semibold text-text-light">{report.timestamp}</p>
-                        </div>
-                        <button
-                          onClick={() => setSelectedReport({ ...report, clusterIds: [report.id], totalReporters: report.similarCount })}
-                          className="rounded-lg bg-black/[0.04] px-2.5 py-1.5 text-[10px] font-bold text-text-muted hover:bg-black/[0.08]"
-                        >
-                          Detail
-                        </button>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {report.status === "PENDING" && (
-                          <>
-                            <button
-                              onClick={() => handleVerifyWithParams((report as ClusteredReport).clusterIds ?? [report.id], report.dasarVerifikasi || "", report.teksPeringatan || "")}
-                              className="rounded-lg bg-primary/10 px-3 py-1.5 text-[10px] font-bold text-primary hover:bg-primary/20"
-                            >
-                              Checklist Valid
-                            </button>
-                            <button
-                              onClick={() => handleDismiss((report as ClusteredReport).clusterIds ?? [report.id])}
-                              className="rounded-lg bg-red-50 px-3 py-1.5 text-[10px] font-bold text-red-600 hover:bg-red-100"
-                            >
-                              Tidak Valid
-                            </button>
-                          </>
-                        )}
-                        {report.status === "VERIFIED" && (
-                          <button
-                            onClick={() => handleBroadcast(report)}
-                            className="rounded-lg bg-accent-blue/10 px-3 py-1.5 text-[10px] font-bold text-accent-blue hover:bg-accent-blue/20"
-                          >
-                            {broadcastedIds.has(report.id) ? "Draft Disalin" : "Broadcast"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {selectedRegionLast24Hours.length === 0 && (
-                    <p className="rounded-xl bg-black/[0.02] px-3 py-5 text-center text-xs text-text-muted">Belum ada laporan dalam 24 jam terakhir.</p>
-                  )}
+            <div className="mt-5 rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h5 className="text-xs font-extrabold text-text-primary">Visual Klaster Kemiripan</h5>
+                  <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-text-muted">
+                    Persentase adalah kemiripan teks antar laporan, bukan confidence model. Laporan otomatis digabung oleh cosine hanya jika rata-rata kemiripan mencapai {COSINE_CLUSTER_THRESHOLD_PERCENT}% atau lebih.
+                  </p>
                 </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <h5 className="text-xs font-extrabold text-text-primary">Laporan yang Sering Dikirim</h5>
-                  <div className="mt-3 space-y-2">
-                    {selectedRegionFrequentReports.map((report) => (
-                      <button
-                        key={report.id}
-                        onClick={() => setSelectedReport({ ...report, clusterIds: [report.id], totalReporters: report.similarCount })}
-                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-black/[0.05] px-3 py-2 text-left hover:bg-black/[0.02]"
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate text-xs font-bold text-text-primary">{report.message}</span>
-                          <span className="text-[10px] text-text-muted">{report.category} · {report.timestamp}</span>
-                        </span>
-                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-extrabold text-primary">
-                          {report.similarCount}x
-                        </span>
-                      </button>
-                    ))}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl bg-[#fbfcfb] px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase text-text-muted">Klaster</p>
+                    <p className="text-base font-extrabold text-text-primary">{selectedRegionClusterStats.groupedClusters}</p>
+                  </div>
+                  <div className="rounded-xl bg-violet-50 px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase text-violet-500">Lolos batas</p>
+                    <p className="text-base font-extrabold text-violet-700">{selectedRegionClusterStats.cosineClusters}</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-50 px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase text-amber-600">Review</p>
+                    <p className="text-base font-extrabold text-amber-700">
+                      {selectedRegionClusterStats.reviewClusters}
+                    </p>
                   </div>
                 </div>
-
-                <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <h5 className="text-xs font-extrabold text-text-primary">Bullet Report Otomatis</h5>
-                  <ul className="mt-3 space-y-2 text-xs leading-relaxed text-text-muted">
-                    <li>• Wilayah {formatWilayah(selectedRegion)} memiliki {selectedRegionReports.length} laporan aktif di daftar.</li>
-                    <li>• Dalam 24 jam terakhir ada {selectedRegionLast24Hours.length} laporan yang masuk.</li>
-                    <li>• Status admin: {selectedRegionStatusCounts.PENDING} pending, {selectedRegionStatusCounts.VERIFIED} valid, {selectedRegionStatusCounts.DISMISSED} ditolak.</li>
-                    <li>• Top kategori: {selectedRegionFrequentReports[0]?.category ?? "-"} dengan laporan serupa tertinggi {selectedRegionFrequentReports[0]?.similarCount ?? 0}x.</li>
-                  </ul>
-                  {broadcastNotice && (
-                    <p className="mt-3 rounded-xl bg-accent-blue/10 px-3 py-2 text-[11px] font-semibold text-accent-blue">
-                      {broadcastNotice}
-                    </p>
-                  )}
-                </div>
               </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                {visualRegionClusters.map((cluster, clusterIndex) => (
+                  <button
+                    key={cluster.id}
+                    onClick={() => setSelectedReport(cluster)}
+                    className="group flex h-full flex-col rounded-2xl border border-black/[0.06] bg-[#fbfcfb] p-4 text-left transition-all hover:border-primary/30 hover:bg-primary/[0.03] focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/15"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="grid size-6 place-items-center rounded-full bg-text-primary text-[10px] font-extrabold text-white">
+                            {clusterIndex + 1}
+                          </span>
+                          <CategoryBadge cat={cluster.category} />
+                          <ClusterReasonBadge reason={cluster.clusterReason} score={cluster.similarityScore} />
+                          <SimilarityBadge score={cluster.similarityScore} />
+                          <SimilarityLevelBadge score={cluster.similarityScore} />
+                        </div>
+                        <p className="mt-3 line-clamp-2 text-sm font-extrabold leading-snug text-text-primary">
+                          {cluster.message}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 rounded-xl bg-white px-3 py-2 text-center shadow-sm">
+                        <p className="text-[9px] font-bold uppercase text-text-muted">Pelapor</p>
+                        <p className="text-lg font-extrabold text-primary">{cluster.totalReporters}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                          Rata-rata kemiripan teks
+                        </span>
+                        <span className="text-[10px] font-semibold text-text-light">
+                          Batas gabung otomatis {COSINE_CLUSTER_THRESHOLD_PERCENT}%
+                        </span>
+                      </div>
+                      <SimilarityMeter score={cluster.similarityScore} />
+                      {(cluster.similarityScore ?? 0) < COSINE_CLUSTER_THRESHOLD_PERCENT && (
+                        <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1 text-[10px] font-semibold leading-relaxed text-amber-700">
+                          Skor ini belum cukup untuk digabung otomatis oleh cosine. Cocokkan manual sebelum broadcast.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      {cluster.members.slice(0, 4).map((member, memberIndex) => (
+                        <div key={member.id} className="flex gap-3 rounded-xl border border-black/[0.04] bg-white px-3 py-2">
+                          <div className="flex flex-col items-center">
+                            <span
+                              className={`mt-1 size-2.5 rounded-full ${
+                                memberIndex === 0 ? "bg-text-primary" : "bg-accent-purple"
+                              }`}
+                            />
+                            {memberIndex < Math.min(cluster.members.length, 4) - 1 && (
+                              <span className="mt-1 h-full min-h-5 w-px bg-black/[0.08]" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-[10px] font-bold text-text-primary">
+                                {memberIndex === 0 ? "Laporan acuan" : `Laporan serupa #${memberIndex}`}
+                              </span>
+                              {member.similarityToRepresentative != null && (
+                                <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-extrabold text-violet-700">
+                                  {member.similarityToRepresentative}%
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-text-muted">
+                              {member.message}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                      {cluster.members.length > 4 && (
+                        <p className="text-[10px] font-semibold text-text-light">
+                          +{cluster.members.length - 4} laporan lain dalam klaster ini.
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {visualRegionClusters.length === 0 && (
+                <p className="mt-4 rounded-xl bg-black/[0.02] px-3 py-5 text-center text-xs text-text-muted">
+                  Belum ada klaster kemiripan untuk wilayah ini.
+                </p>
+              )}
             </div>
+
           </div>
         )}
       </div>
@@ -953,18 +1304,54 @@ export default function ReportsPage() {
           </p>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[480px]">
+        {/* Mobile Cards */}
+        <div className="divide-y divide-black/[0.04] md:hidden">
+          {paginatedReports.map((report) => (
+            <button
+              key={report.id}
+              onClick={() => setSelectedReport(report)}
+              className="block w-full px-4 py-4 text-left transition-colors hover:bg-black/[0.02] focus:bg-black/[0.02] focus:outline-none"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-extrabold text-text-primary">{report.sender}</p>
+                  <p className="mt-1 text-[10px] font-semibold text-text-light">{report.timestamp}</p>
+                </div>
+                <StatusBadge status={report.status} />
+              </div>
+              <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-text-muted">{report.message}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <CategoryBadge cat={report.category} />
+                <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[9px] font-bold text-text-muted">
+                  {formatWilayah(report.wilayahTag)}
+                </span>
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">
+                  {report.similarCount} pelapor
+                </span>
+                <ClusterReasonBadge reason={report.clusterReason} score={report.similarityScore} />
+                <SimilarityBadge score={report.similarityScore} />
+              </div>
+            </button>
+          ))}
+          {paginatedReports.length === 0 && (
+            <div className="px-6 py-14 text-center text-xs text-text-muted">
+              Tidak ada laporan yang sesuai dengan filter aktif.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table */}
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full min-w-[760px] border-collapse text-left text-xs">
             <thead>
               <tr className="border-b border-black/[0.06] text-[10px] font-bold uppercase tracking-wider text-text-muted">
                 <th className="px-4 sm:px-6 py-3">Sender</th>
                 <th className="px-3 py-3">Kategori</th>
-                <th className="px-3 py-3 hidden sm:table-cell">Wilayah</th>
+                <th className="px-3 py-3">Wilayah</th>
                 <th className="px-3 py-3">Isi Aduan</th>
-                <th className="px-3 py-3 text-center hidden md:table-cell">Serupa</th>
+                <th className="px-3 py-3 text-center">Kemiripan</th>
                 <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3 hidden lg:table-cell">Tanggal</th>
+                <th className="px-3 py-3">Tanggal</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.04]">
@@ -980,26 +1367,30 @@ export default function ReportsPage() {
                   <td className="px-3 py-4">
                     <CategoryBadge cat={report.category} />
                   </td>
-                  <td className="px-3 py-4 hidden sm:table-cell">
+                  <td className="px-3 py-4">
                     <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[9px] font-bold text-text-muted whitespace-nowrap">
                       {formatWilayah(report.wilayahTag)}
                     </span>
                   </td>
-                  <td className="px-3 py-4 max-w-[140px] sm:max-w-[200px] truncate text-text-muted">
+                  <td className="px-3 py-4 max-w-[260px] truncate text-text-muted">
                     {report.message}
                   </td>
-                  <td className="px-3 py-4 text-center hidden md:table-cell">
+                  <td className="px-3 py-4 text-center">
                     <span className="font-bold text-text-primary">{report.similarCount}x</span>
                     {(report as ClusteredReport).clusterIds?.length > 1 && (
                       <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
                         {(report as ClusteredReport).clusterIds.length} laporan
                       </span>
                     )}
+                    <div className="mt-1 flex justify-center gap-1">
+                      <ClusterReasonBadge reason={report.clusterReason} score={report.similarityScore} />
+                      <SimilarityBadge score={report.similarityScore} />
+                    </div>
                   </td>
                   <td className="px-3 py-4">
                     <StatusBadge status={report.status} />
                   </td>
-                  <td className="px-3 py-4 text-text-muted whitespace-nowrap text-[10px] hidden lg:table-cell">
+                  <td className="px-3 py-4 text-text-muted whitespace-nowrap text-[10px]">
                     {report.timestamp}
                   </td>
                 </tr>
@@ -1091,10 +1482,10 @@ export default function ReportsPage() {
             WebkitBackdropFilter: "blur(8px)",
           }}
         >
-          <div className="relative w-full max-w-3xl mx-6 bg-white rounded-[28px] shadow-2xl flex flex-col max-h-[92vh] animate-[fade-up_0.2s_ease-out_both]">
+          <div className="relative mx-3 flex max-h-[92vh] w-full max-w-3xl flex-col rounded-[28px] bg-white shadow-2xl animate-[fade-up_0.2s_ease-out_both] sm:mx-6">
 
             {/* Modal Header */}
-            <div className="flex items-start justify-between px-7 py-6 border-b border-black/[0.06] flex-shrink-0">
+            <div className="flex flex-shrink-0 items-start justify-between border-b border-black/[0.06] px-4 py-5 sm:px-7 sm:py-6">
               <div className="space-y-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <CategoryBadge cat={selectedReport.category} />
@@ -1102,6 +1493,10 @@ export default function ReportsPage() {
                   <span className="inline-flex items-center rounded-full bg-black/[0.05] px-2.5 py-1 text-[10px] font-semibold text-text-muted">
                     {formatWilayah(selectedReport.wilayahTag)}
                   </span>
+                  {selectedReport.similarCount > 1 && (
+                    <ClusterReasonBadge reason={selectedReport.clusterReason} score={selectedReport.similarityScore} />
+                  )}
+                  <SimilarityBadge score={selectedReport.similarityScore} />
                 </div>
                 <div>
                   <h4 className="text-base font-extrabold text-text-primary">{selectedReport.sender}</h4>
@@ -1124,7 +1519,7 @@ export default function ReportsPage() {
             </div>
 
             {/* Modal Body — scrollable */}
-            <div className="px-7 py-6 space-y-5 overflow-y-auto flex-1">
+            <div className="flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6">
               {/* Isi Pesan */}
               <div className="space-y-2">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">
@@ -1170,6 +1565,12 @@ export default function ReportsPage() {
                 />
               </div>
 
+              {broadcastNotice && (
+                <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs font-semibold text-amber-800">
+                  {broadcastNotice}
+                </div>
+              )}
+
               {/* Teks Peringatan */}
               <div className="space-y-2">
                 <label className="block text-[10px] font-bold uppercase tracking-widest text-text-muted">
@@ -1189,15 +1590,28 @@ export default function ReportsPage() {
                     );
                   }}
                   className="block w-full rounded-2xl border border-black/10 px-4 py-3 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 h-28 resize-none leading-relaxed"
-                  placeholder="🚨 BAHAYA! Link ini terindikasi PENIPUAN. Jangan klik atau bagikan..."
+                  placeholder="Bahaya: link ini terindikasi penipuan. Jangan klik atau bagikan."
                 />
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="flex gap-3 px-7 py-5 border-t border-black/[0.06] bg-[#fbfcfb] flex-shrink-0 rounded-b-[28px]">
+            <div className="flex flex-shrink-0 flex-col gap-3 rounded-b-[28px] border-t border-black/[0.06] bg-[#fbfcfb] px-4 py-4 sm:flex-row sm:px-7 sm:py-5">
               {selectedReport.status === "PENDING" && (
                 <>
+                  {(selectedReport.category === "PENIPUAN" || selectedReport.category === "MISINFORMASI") && (
+                    <button
+                      onClick={() => handleBroadcastCluster(selectedReport)}
+                      disabled={broadcastingClusterId === selectedReport.id}
+                      className="flex-1 rounded-2xl bg-amber-500 text-white text-sm font-bold py-3 px-5 hover:bg-amber-600 transition-all shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {broadcastingClusterId === selectedReport.id
+                        ? "Membuat poster..."
+                        : selectedReport.clusterIds?.length > 1
+                        ? `Buat poster & broadcast (${selectedReport.totalReporters} pelapor)`
+                        : "Buat poster & broadcast"}
+                    </button>
+                  )}
                   <button
                     onClick={() =>
                       handleVerifyWithParams(
@@ -1206,17 +1620,17 @@ export default function ReportsPage() {
                         selectedReport.teksPeringatan || ""
                       )
                     }
-                    className="flex-1 rounded-2xl bg-primary text-white text-sm font-bold py-3 px-5 hover:bg-primary-dark transition-all shadow-sm cursor-pointer"
+                    className="rounded-2xl bg-primary text-white text-sm font-bold py-3 px-5 hover:bg-primary-dark transition-all shadow-sm cursor-pointer"
                   >
                     {selectedReport.clusterIds?.length > 1
-                      ? `Validasi ${selectedReport.clusterIds.length} Laporan`
-                      : "Checklist Valid"}
+                      ? `Validasi ${selectedReport.clusterIds.length} laporan`
+                      : "Tandai valid"}
                   </button>
                   <button
                     onClick={() => handleDismiss(selectedReport.clusterIds ?? [selectedReport.id])}
                     className="rounded-2xl bg-red-50 text-red-600 text-sm font-bold py-3 px-5 hover:bg-red-100 transition-all cursor-pointer"
                   >
-                    Tidak Valid
+                    Tolak laporan
                   </button>
                 </>
               )}

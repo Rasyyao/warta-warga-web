@@ -151,7 +151,7 @@ export default function DashboardLayout({
             Log Chat Bot
           </Link>
 
-          <Link
+          {/* <Link
             href="/dashboard/agents"
             onClick={() => setIsSidebarOpen(false)}
             className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
@@ -164,7 +164,7 @@ export default function DashboardLayout({
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
             </svg>
             Pengaturan Agent
-          </Link>
+          </Link> */}
         </nav>
 
         {/* User Pill / Logout */}

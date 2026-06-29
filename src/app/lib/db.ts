@@ -17,6 +17,7 @@ export interface DatabaseReport {
   dasar_verifikasi: string | null;
   teks_peringatan: string | null;
   jumlah_serupa: number;
+  cluster_reason: "modus_key" | "cosine" | "similar_text" | null;
   timestamp: string;
   updated_ts: string;
 }
@@ -79,6 +80,7 @@ export async function getReportsList(): Promise<DatabaseReport[]> {
     dasar_verifikasi: r.dasar_verifikasi,
     teks_peringatan: r.teks_peringatan,
     jumlah_serupa: Number(r.jumlah_serupa ?? 1),
+    cluster_reason: r.cluster_reason ?? null,
     timestamp: r.timestamp ?? r.updated_ts,
     updated_ts: r.updated_ts,
   }));
@@ -111,6 +113,7 @@ export async function setApprovalLaporan(
     dasar_verifikasi: r.dasar_verifikasi,
     teks_peringatan: r.teks_peringatan,
     jumlah_serupa: Number(r.jumlah_serupa ?? 1),
+    cluster_reason: r.cluster_reason ?? null,
     timestamp: r.timestamp ?? r.updated_ts,
     updated_ts: r.updated_ts,
   };
