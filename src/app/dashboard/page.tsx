@@ -48,6 +48,7 @@ type DashboardResponse =
       reports: DashboardReport[];
       sources: DashboardSource[];
       regionalCounts: Record<string, number>;
+      broadcastedIds?: number[];
     }
   | {
       success: false;
@@ -370,23 +371,10 @@ export default function OverviewPage() {
       options: {
         ...chartBaseOptions,
         cutout: "66%",
-        layout: {
-          padding: {
-            top: 8,
-          },
-        },
+        layout: { padding: { top: 4 } },
         plugins: {
           ...chartBaseOptions.plugins,
-          legend: {
-            position: "bottom",
-            labels: {
-              boxWidth: 10,
-              boxHeight: 10,
-              color: "#888888",
-              font: { size: 11, weight: 700 },
-              padding: 12,
-            },
-          },
+          legend: { display: false },
         },
       },
       plugins: [createDoughnutCenterTextPlugin(totalRegionalReports, "total laporan")],
@@ -461,18 +449,7 @@ export default function OverviewPage() {
           <p className="mt-2 text-sm leading-relaxed text-text-muted">
             Fokus pada laporan baru 24 jam terakhir, wilayah paling aktif, dan antrean validasi admin.
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button 
-            onClick={() => setIsSystemActive(!isSystemActive)}
-            className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all border ${isSystemActive ? "bg-white text-text-primary border-black/10 hover:bg-black/[0.03]" : "bg-primary text-white border-transparent hover:bg-primary-dark"}`}
-          >
-            {isSystemActive ? "Matikan Agent" : "Aktifkan Agent"}
-          </button>
-          <a href="/dashboard/reports" className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white hover:bg-primary-dark transition-all">
-            Tinjau Laporan
-          </a>
-        </div>
+        </div>/
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -492,15 +469,36 @@ export default function OverviewPage() {
           chartHeight="h-[300px]"
           className="xl:col-span-8"
         />
-        <ChartPanel
-          title="Persebaran Wilayah"
-          description={`${totalRegionalReports} laporan terpetakan berdasarkan wilayah.`}
-          actionLabel="Buka Peta"
-          onAction={() => { window.location.href = "/dashboard/reports"; }}
-          config={regionChartConfig}
-          chartHeight="h-[300px]"
-          className="xl:col-span-4"
-        />
+        <div className="rounded-[20px] border border-black/[0.06] bg-white p-5 shadow-sm xl:col-span-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-base font-bold text-text-primary">Persebaran Wilayah</h3>
+              <p className="mt-1 text-xs leading-relaxed text-text-muted">{totalRegionalReports} laporan terpetakan berdasarkan wilayah.</p>
+            </div>
+            <button
+              onClick={() => { window.location.href = "/dashboard/reports"; }}
+              className="flex-shrink-0 rounded-xl bg-primary/10 px-3 py-2 text-[10px] font-bold text-primary hover:bg-primary/20 transition-all"
+            >
+              Buka Peta
+            </button>
+          </div>
+          <div className="relative mt-5 h-[180px]">
+            <ChartCanvas config={regionChartConfig} />
+          </div>
+          <div className="mt-4 flex flex-col gap-2">
+            {regionalChartItems.map((item) => (
+              <div key={item.label} className="flex min-w-0 items-center gap-2">
+                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="flex-1 truncate text-[11px] text-text-muted">{item.label}</span>
+                <span className="text-[11px] font-bold text-text-primary">{item.value}</span>
+                <span className="w-8 text-right text-[10px] text-text-light">{item.percent}%</span>
+              </div>
+            ))}
+            {regionalChartItems.length === 0 && (
+              <p className="py-2 text-center text-[11px] text-text-muted">Belum ada data wilayah.</p>
+            )}
+          </div>
+        </div>
         <div className="rounded-[20px] border border-black/[0.06] bg-white p-5 shadow-sm xl:col-span-12">
           <div>
             <h3 className="text-base font-bold text-text-primary">Ringkasan Operasional</h3>

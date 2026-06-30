@@ -105,6 +105,7 @@ type DashboardResponse =
   | {
       success: true;
       reports: DashboardReport[];
+      broadcastedIds?: number[];
     }
   | {
       success: false;
@@ -492,6 +493,10 @@ export default function ReportsPage() {
               };
             })
           );
+          // Seed broadcasted IDs from DB so button stays disabled after page reload
+          if (dashboardData.broadcastedIds?.length) {
+            setBroadcastedIds(new Set(dashboardData.broadcastedIds.map(String)));
+          }
         } else {
           setDbError(dashboardData.error || "Koneksi ke database gagal.");
         }
@@ -1658,8 +1663,16 @@ export default function ReportsPage() {
             <div className="flex flex-shrink-0 flex-col gap-3 rounded-b-[28px] border-t border-black/[0.06] bg-[#fbfcfb] px-4 py-4 sm:flex-row sm:px-7 sm:py-5">
               {selectedReport.status === "PENDING" && (
                 <>
-                  {(selectedReport.category === "PENIPUAN" || selectedReport.category === "MISINFORMASI") && (
-                    selectedReport.totalReporters >= MIN_BROADCAST_REPORTERS ? (
+                  {(selectedReport.category === "PENIPUAN" || selectedReport.category === "MISINFORMASI") && (() => {
+                    const alreadyBroadcasted = selectedReport.clusterIds?.some((cid) => broadcastedIds.has(cid)) ?? broadcastedIds.has(selectedReport.id);
+                    if (alreadyBroadcasted) {
+                      return (
+                        <button disabled className="flex-1 rounded-2xl bg-gray-100 text-gray-400 text-sm font-bold py-3 px-5 cursor-not-allowed">
+                          ✅ Sudah Disiarkan
+                        </button>
+                      );
+                    }
+                    return selectedReport.totalReporters >= MIN_BROADCAST_REPORTERS ? (
                       <button
                         onClick={() => handleBroadcastCluster(selectedReport)}
                         disabled={broadcastingClusterId === selectedReport.id}
@@ -1676,8 +1689,8 @@ export default function ReportsPage() {
                         Saat ini <strong>{selectedReport.totalReporters}</strong> pelapor
                         {" "}({MIN_BROADCAST_REPORTERS - selectedReport.totalReporters} lagi dibutuhkan).
                       </div>
-                    )
-                  )}
+                    );
+                  })()}
                   <button
                     onClick={() =>
                       handleVerifyWithParams(
@@ -1700,19 +1713,26 @@ export default function ReportsPage() {
                   </button>
                 </>
               )}
-              {selectedReport.status === "VERIFIED" && (
-                <button
-                  onClick={() => handleBroadcast(selectedReport)}
-                  disabled={broadcastingClusterId === selectedReport.id}
-                  className="rounded-2xl bg-accent-blue/10 text-accent-blue text-sm font-bold py-3 px-5 hover:bg-accent-blue/20 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {broadcastingClusterId === selectedReport.id
-                    ? "Mengirim broadcast..."
-                    : broadcastedIds.has(selectedReport.id)
-                    ? "Sudah Disiarkan"
-                    : "Kirim Broadcast"}
-                </button>
-              )}
+              {selectedReport.status === "VERIFIED" && (() => {
+                const alreadyBroadcasted = broadcastedIds.has(selectedReport.id);
+                return (
+                  <button
+                    onClick={() => !alreadyBroadcasted && handleBroadcast(selectedReport)}
+                    disabled={alreadyBroadcasted || broadcastingClusterId === selectedReport.id}
+                    className={`rounded-2xl text-sm font-bold py-3 px-5 transition-all ${
+                      alreadyBroadcasted
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        : "bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                    }`}
+                  >
+                    {broadcastingClusterId === selectedReport.id
+                      ? "Mengirim broadcast..."
+                      : alreadyBroadcasted
+                      ? "✅ Sudah Disiarkan"
+                      : "Kirim Broadcast"}
+                  </button>
+                );
+              })()}
               <button
                 onClick={() => setSelectedReport(null)}
                 className="rounded-2xl bg-black/[0.04] text-text-muted text-sm font-bold py-3 px-5 hover:bg-black/[0.08] transition-all cursor-pointer"

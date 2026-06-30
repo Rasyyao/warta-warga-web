@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import Chart from "chart.js/auto";
-import type { ChartConfiguration, Chart as ChartInstance } from "chart.js";
+import type { ChartConfiguration, Chart as ChartInstance, Plugin } from "chart.js";
+
+const PAGE_SIZE = 15;
+const CHART_COLORS = ["#2196f3", "#25d366", "#f59e0b", "#e53935", "#7c5cfc", "#14b8a6"];
 
 interface InteractionLog {
   id: number;
@@ -65,6 +68,27 @@ function getActionCounts(logs: InteractionLog[]) {
   ).sort((a, b) => b[1] - a[1]);
 }
 
+function createDoughnutCenterTextPlugin(value: number | string, label: string): Plugin<"doughnut"> {
+  return {
+    id: "doughnutCenterText",
+    afterDatasetsDraw(chart) {
+      const firstArc = chart.getDatasetMeta(0).data[0] as unknown as { x: number; y: number } | undefined;
+      if (!firstArc) return;
+      const { ctx } = chart;
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#171717";
+      ctx.font = "800 28px Arial, sans-serif";
+      ctx.fillText(String(value), firstArc.x, firstArc.y - 6);
+      ctx.fillStyle = "#888888";
+      ctx.font = "600 11px Arial, sans-serif";
+      ctx.fillText(label, firstArc.x, firstArc.y + 17);
+      ctx.restore();
+    },
+  };
+}
+
 function ChartCanvas({ config }: { config: ChartConfiguration }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
@@ -102,6 +126,7 @@ function MetricCard({
 export default function LogsPage() {
   const [logs, setLogs] = useState<InteractionLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchLogsData = () => {
     setIsLoading(true);
@@ -111,6 +136,7 @@ export default function LogsPage() {
         const dashboardData = data as DashboardResponse;
         if (dashboardData.success) {
           setLogs(dashboardData.logs);
+          setCurrentPage(1);
         }
         setIsLoading(false);
       })
@@ -129,31 +155,54 @@ export default function LogsPage() {
   const actionCounts = useMemo(() => getActionCounts(logs), [logs]);
   const last24HourLogs = logs.filter((log) => isWithinLastHours(log.timestamp, 24)).length;
   const activeContexts = new Set(logs.map((log) => log.konteks).filter(Boolean)).size;
-  const topAction = actionCounts[0]?.[0] ?? "-";
+
+  const actionChartItems = useMemo(() => {
+    const total = actionCounts.reduce((s, [, v]) => s + v, 0);
+    return actionCounts.slice(0, 6).map(([label, value], i) => ({
+      label,
+      value,
+      color: CHART_COLORS[i % CHART_COLORS.length],
+      percent: total > 0 ? Math.round((value / total) * 100) : 0,
+    }));
+  }, [actionCounts]);
+
+  const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+  const pagedLogs = useMemo(
+    () => logs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [logs, currentPage]
+  );
+  const paginationItems = useMemo(() => {
+    const items: (number | "…")[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) items.push(i);
+    } else {
+      items.push(1);
+      if (currentPage > 3) items.push("…");
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) items.push(i);
+      if (currentPage < totalPages - 2) items.push("…");
+      items.push(totalPages);
+    }
+    return items;
+  }, [currentPage, totalPages]);
+
   const chartBaseOptions = useMemo(
     () => ({
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: {
-          labels: {
-            boxWidth: 10,
-            boxHeight: 10,
-            color: "#888888",
-            font: { size: 11, weight: 700 },
-          },
-        },
+        legend: { display: false as const },
         tooltip: {
           backgroundColor: "#111111",
           padding: 10,
-          titleFont: { size: 12, weight: 800 },
-          bodyFont: { size: 11, weight: 600 },
+          titleFont: { size: 12, weight: 700 as const },
+          bodyFont: { size: 11, weight: 600 as const },
           displayColors: false,
         },
       },
     }),
     []
   );
+
   const trafficConfig = useMemo<ChartConfiguration>(
     () => ({
       type: "line",
@@ -177,6 +226,13 @@ export default function LogsPage() {
       },
       options: {
         ...chartBaseOptions,
+        plugins: {
+          ...chartBaseOptions.plugins,
+          legend: {
+            display: true,
+            labels: { boxWidth: 10, boxHeight: 10, color: "#888888", font: { size: 11, weight: 700 } },
+          },
+        },
         scales: {
           x: { grid: { display: false }, ticks: { color: "#888888", font: { size: 10, weight: 700 } } },
           y: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.05)" }, ticks: { precision: 0, color: "#888888", font: { size: 10, weight: 700 } } },
@@ -185,15 +241,16 @@ export default function LogsPage() {
     }),
     [chartBaseOptions, dailyBuckets]
   );
+
   const actionConfig = useMemo<ChartConfiguration>(
     () => ({
       type: "doughnut",
       data: {
-        labels: actionCounts.length > 0 ? actionCounts.map(([label]) => label) : ["Belum ada data"],
+        labels: actionChartItems.length > 0 ? actionChartItems.map((i) => i.label) : ["Belum ada data"],
         datasets: [
           {
-            data: actionCounts.length > 0 ? actionCounts.map(([, value]) => value) : [1],
-            backgroundColor: actionCounts.length > 0 ? ["#2196f3", "#25d366", "#f59e0b", "#e53935", "#7c5cfc"] : ["#eef2ef"],
+            data: actionChartItems.length > 0 ? actionChartItems.map((i) => i.value) : [1],
+            backgroundColor: actionChartItems.length > 0 ? actionChartItems.map((i) => i.color) : ["#eef2ef"],
             borderColor: "#ffffff",
             borderWidth: 3,
             hoverOffset: 8,
@@ -203,9 +260,11 @@ export default function LogsPage() {
       options: {
         ...chartBaseOptions,
         cutout: "66%",
+        layout: { padding: { top: 4 } },
       },
+      plugins: [createDoughnutCenterTextPlugin(logs.length, "interaksi")],
     }),
-    [actionCounts, chartBaseOptions]
+    [actionChartItems, chartBaseOptions, logs.length]
   );
 
   if (isLoading) {
@@ -230,11 +289,10 @@ export default function LogsPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard label="Total request" value={logs.length} />
         <MetricCard label="Request 24 jam" value={last24HourLogs} tone="text-accent-blue" />
         <MetricCard label="Konteks aktif" value={activeContexts} />
-        <MetricCard label="Top aksi" value={topAction} tone="text-primary" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-12">
@@ -259,43 +317,61 @@ export default function LogsPage() {
         <div className="rounded-[20px] border border-black/[0.06] bg-white p-5 shadow-sm xl:col-span-4">
           <h3 className="text-base font-bold text-text-primary">Distribusi aksi</h3>
           <p className="mt-1 text-xs leading-relaxed text-text-muted">Jenis request yang paling sering diproses.</p>
-          <div className="mt-5 h-[300px]">
+          <div className="mt-5 h-[180px]">
             <ChartCanvas config={actionConfig} />
+          </div>
+          <div className="mt-4 flex flex-col gap-2">
+            {actionChartItems.map((item) => (
+              <div key={item.label} className="flex items-center gap-2 min-w-0">
+                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="flex-1 truncate text-[11px] text-text-muted">{item.label}</span>
+                <span className="text-[11px] font-bold text-text-primary">{item.value}</span>
+                <span className="w-8 text-right text-[10px] text-text-light">{item.percent}%</span>
+              </div>
+            ))}
+            {actionChartItems.length === 0 && (
+              <p className="py-2 text-center text-[11px] text-text-muted">Belum ada data interaksi.</p>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="rounded-[24px] border border-black/[0.06] bg-white p-6 shadow-sm">
-        <h3 className="text-base font-bold text-text-primary mb-4">Log Interaksi Chat Bot (WhatsApp)</h3>
+      <div className="rounded-[24px] border border-black/[0.06] bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-black/[0.06]">
+          <h3 className="text-base font-bold text-text-primary">Log Interaksi Chat Bot (WhatsApp)</h3>
+          <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-[10px] font-bold text-text-muted">{logs.length} entri</span>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full min-w-[720px] border-collapse text-left text-xs">
             <thead>
-              <tr className="border-b border-black/[0.06] text-text-muted font-bold text-[10px] uppercase tracking-wider">
-                <th className="pb-3">Konteks/User</th>
-                <th className="pb-3">Jenis/Aksi</th>
-                <th className="pb-3">Pesan Warga</th>
-                <th className="pb-3">Respons Bot</th>
-                <th className="pb-3">Label</th>
-                <th className="pb-3 text-right">Waktu</th>
+              <tr className="border-b border-black/[0.06] text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                <th className="px-4 sm:px-6 py-3">Konteks/User</th>
+                <th className="px-3 py-3">Jenis/Aksi</th>
+                <th className="px-3 py-3">Pesan Warga</th>
+                <th className="px-3 py-3">Respons Bot</th>
+                <th className="px-3 py-3">Label</th>
+                <th className="px-3 py-3 text-right">Waktu</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-black/[0.04] text-text-muted">
-              {logs.map((log) => (
-                <tr key={log.id} className="hover:bg-black/[0.01]">
-                  <td className="py-3.5 font-bold text-text-primary pr-2">{log.konteks || "Grup/Warga"}</td>
-                  <td className="py-3.5 pr-2">
-                    <span className="rounded-md bg-black/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase">
+            <tbody className="divide-y divide-black/[0.04]">
+              {pagedLogs.map((log) => (
+                <tr key={log.id} className="hover:bg-black/[0.02] transition-colors">
+                  <td className="px-4 sm:px-6 py-4 font-bold text-text-primary whitespace-nowrap">
+                    {log.konteks || "Grup/Warga"}
+                  </td>
+                  <td className="px-3 py-4 whitespace-nowrap">
+                    <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[9px] font-bold text-text-muted uppercase">
                       {log.aksi || log.jenis || "-"}
                     </span>
                   </td>
-                  <td className="py-3.5 max-w-[180px] truncate pr-2" title={log.ringkas_pesan || ""}>
+                  <td className="px-3 py-4 max-w-[200px] truncate text-text-muted" title={log.ringkas_pesan || ""}>
                     {log.ringkas_pesan || "-"}
                   </td>
-                  <td className="py-3.5 max-w-[240px] truncate pr-2 text-primary font-medium" title={log.ringkas_resp || ""}>
+                  <td className="px-3 py-4 max-w-[260px] truncate font-medium text-primary" title={log.ringkas_resp || ""}>
                     {log.ringkas_resp || "-"}
                   </td>
-                  <td className="py-3.5 pr-2 text-text-light">{log.label || "-"}</td>
-                  <td className="py-3.5 text-right text-text-light whitespace-nowrap">
+                  <td className="px-3 py-4 text-text-muted whitespace-nowrap text-[10px]">{log.label || "-"}</td>
+                  <td className="px-3 py-4 text-right text-text-muted whitespace-nowrap text-[10px]">
                     {log.timestamp.includes("T")
                       ? new Date(log.timestamp).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB"
                       : log.timestamp}
@@ -304,12 +380,68 @@ export default function LogsPage() {
               ))}
               {logs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-xs">Belum ada log chat interaksi tercatat.</td>
+                  <td colSpan={6} className="px-6 py-14 text-center text-xs text-text-muted">Belum ada log chat interaksi tercatat.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-t border-black/[0.06] flex-wrap gap-2">
+            <span className="text-xs text-text-muted">
+              Halaman <strong className="text-text-primary">{currentPage}</strong> dari{" "}
+              <strong className="text-text-primary">{totalPages}</strong>
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="rounded-lg px-2 py-1.5 text-xs font-bold text-text-muted hover:bg-black/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                «
+              </button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="rounded-lg px-2 py-1.5 text-xs font-bold text-text-muted hover:bg-black/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                ‹
+              </button>
+              {paginationItems.map((p, idx) =>
+                p === "…" ? (
+                  <span key={`ell-${idx}`} className="px-1.5 text-xs text-text-muted">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setCurrentPage(p as number)}
+                    className={`rounded-lg min-w-[30px] px-2.5 py-1.5 text-xs font-bold transition-all ${
+                      currentPage === p
+                        ? "bg-primary text-white shadow-sm"
+                        : "text-text-muted hover:bg-black/[0.04]"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="rounded-lg px-2 py-1.5 text-xs font-bold text-text-muted hover:bg-black/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                ›
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="rounded-lg px-2 py-1.5 text-xs font-bold text-text-muted hover:bg-black/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                »
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -178,13 +178,21 @@ export async function insertInfoBansos(info: Omit<InfoBansos, "id">): Promise<nu
 export async function getRegionalReportCounts(): Promise<Record<string, number>> {
   const { data, error } = await getSupabase()
     .from("laporan")
-    .select("wilayah_tag, jumlah_serupa");
+    .select("wilayah_tag");
   if (error) { console.error("getRegionalReportCounts:", error.message); return {}; }
   const counts: Record<string, number> = {};
   for (const r of data ?? []) {
-    if (r.wilayah_tag) counts[r.wilayah_tag] = (counts[r.wilayah_tag] ?? 0) + Number(r.jumlah_serupa ?? 1);
+    if (r.wilayah_tag) counts[r.wilayah_tag] = (counts[r.wilayah_tag] ?? 0) + 1;
   }
   return counts;
+}
+
+export async function getBroadcastedLaporanIds(): Promise<number[]> {
+  const { data, error } = await getSupabase()
+    .from("peringatan_terkirim")
+    .select("laporan_id");
+  if (error) { console.error("getBroadcastedLaporanIds:", error.message); return []; }
+  return (data ?? []).map((r) => Number(r.laporan_id)).filter(Boolean);
 }
 
 // ── sumber_crawl CRUD ─────────────────────────────────────────────────────────

@@ -4,15 +4,17 @@ import {
   getInteractionLogs,
   getInfoBansosList,
   getRegionalReportCounts,
+  getBroadcastedLaporanIds,
 } from "../../lib/db";
 
 export async function GET() {
   try {
-    const [reports, logs, sources, regionalCounts] = await Promise.all([
+    const [reports, logs, sources, regionalCounts, broadcastedIds] = await Promise.all([
       getReportsList(),
       getInteractionLogs(),
       getInfoBansosList(),
       getRegionalReportCounts(),
+      getBroadcastedLaporanIds(),
     ]);
 
     return NextResponse.json({
@@ -21,6 +23,7 @@ export async function GET() {
       logs,
       sources,
       regionalCounts,
+      broadcastedIds,
     });
   } catch (e: any) {
     console.error("Dashboard API error:", e);
