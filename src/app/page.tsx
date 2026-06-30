@@ -93,6 +93,19 @@ const demoItems = [
   "Ketik /lapor + keluhan -> diteruskan ke pemda terkait",
 ];
 
+const sourceRepos = [
+  {
+    label: "Web Dashboard",
+    href: "https://github.com/Rasyyao/warta-warga-web.git",
+    desc: "Landing page dan dashboard publik JagaWarga.",
+  },
+  {
+    label: "AI Agent",
+    href: "https://github.com/xue-yuki/Warta-Warga.git",
+    desc: "Bot WhatsApp, pipeline verifikasi, ingest Komdigi, dan broadcast.",
+  },
+];
+
 const validationScenarios = [
   {
     headline: "Validasi Hoaks",
@@ -180,6 +193,7 @@ export default function Home() {
       <AgentPipeline />
       <RegionalRadar />
       <WhatsAppDemo />
+      <SourceRepos />
       <Footer />
     </main>
   );
@@ -803,6 +817,53 @@ async function RegionalRadar() {
 }
 
 
+function SourceRepos() {
+  return (
+    <section id="kode-sumber" className="relative isolate bg-[#f5faf7] px-6 py-16 lg:px-20 lg:py-20">
+      <SectionGridBackdrop />
+      <div className="relative z-10 mx-auto grid max-w-[1200px] gap-6 rounded-[28px] border border-black/[.06] bg-white/88 p-6 shadow-[0_18px_54px_rgba(0,0,0,0.06)] backdrop-blur-xl md:grid-cols-[0.9fr_1.1fr] md:p-8 lg:p-10">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.08em] text-primary-dark">
+            GitHub
+          </p>
+          <h2 className="mt-3 text-[clamp(2rem,4vw,3rem)] font-extrabold leading-[1.05] tracking-[-0.02em] text-text-primary">
+            Kode sumber terbuka
+          </h2>
+          <p className="mt-4 max-w-md text-[15px] leading-[1.7] text-text-muted">
+            Lihat repository web dan agent utama yang menjalankan pengalaman JagaWarga.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {sourceRepos.map((repo) => (
+            <a
+              key={repo.href}
+              href={repo.href}
+              target="_blank"
+              rel="noreferrer"
+              className="group rounded-card border border-black/[.06] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_12px_28px_rgba(17,17,17,0.08)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+            >
+              <span className="grid size-10 place-items-center rounded-[10px] bg-[#111111] text-xs font-extrabold text-white">
+                GH
+              </span>
+              <h3 className="mt-4 text-lg font-extrabold text-text-primary">
+                {repo.label}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-text-muted">
+                {repo.desc}
+              </p>
+              <p className="mt-4 break-all text-xs font-semibold text-primary-dark">
+                {repo.href.replace("https://github.com/", "")}
+              </p>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
 function Footer() {
   return (
     <footer className="bg-white px-6 pt-16 lg:px-20">
@@ -842,18 +903,18 @@ function Footer() {
               </ul>
               {column.title === "Teknologi" ? (
                 <div className="mt-5 flex gap-2">
-                  <a
-                    href="#"
-                    className="grid size-9 place-items-center rounded-[8px] border border-black/[.08] text-xs font-bold"
-                  >
-                    GH
-                  </a>
-                  <a
-                    href="#"
-                    className="grid size-9 place-items-center rounded-[8px] border border-black/[.08] text-xs font-bold"
-                  >
-                    IG
-                  </a>
+                  {sourceRepos.map((repo) => (
+                    <a
+                      key={repo.href}
+                      href={repo.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`GitHub ${repo.label}`}
+                      className="grid size-9 place-items-center rounded-[8px] border border-black/[.08] text-xs font-bold transition hover:border-primary/40 hover:text-primary-dark"
+                    >
+                      GH
+                    </a>
+                  ))}
                 </div>
               ) : null}
             </div>
