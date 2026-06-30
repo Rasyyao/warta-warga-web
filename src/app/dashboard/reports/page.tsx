@@ -6,6 +6,7 @@ import TAG_GPS_JSON from "@/app/lib/indonesia-coordinates.json";
 
 const PAGE_SIZE = 10;
 const COSINE_CLUSTER_THRESHOLD = 0.72;
+const MIN_BROADCAST_REPORTERS = 5;
 const COSINE_CLUSTER_THRESHOLD_PERCENT = Math.round(COSINE_CLUSTER_THRESHOLD * 100);
 
 const INDONESIAN_STOPWORDS = new Set([
@@ -351,6 +352,31 @@ function createBroadcastMessage(report: Report) {
     `Ringkasan: ${report.message}`,
     report.teksPeringatan ? `Arahan: ${report.teksPeringatan}` : "Arahan: tetap waspada dan jangan menyebarkan informasi sebelum terverifikasi.",
   ].join("\n");
+}
+
+/** Preview teks broadcast yang akan dikirim bot ke grup WA — harus identik dengan formatPeringatan() di broadcast.js */
+function formatBroadcastPreview(report: Report | ClusteredReport, totalReporters?: number) {
+  const total = totalReporters ?? (report as ClusteredReport).totalReporters ?? report.similarCount;
+  const lines = [
+    `⚠️ *Peringatan Dini — ${formatWilayah(report.wilayahTag)}*`,
+    "",
+    report.teksPeringatan || report.message || "Ada laporan modus penipuan di daerah ini.",
+  ];
+  if (total > 1) {
+    lines.push("", `📈 _${total} laporan serupa diterima di daerah ini._`);
+  }
+  lines.push(
+    "",
+    "*Tips aman:*",
+    "• Bansos resmi *GRATIS* — tidak ada biaya/transfer/pulsa.",
+    "• Jangan beri OTP/PIN/NIK/data pribadi ke siapa pun.",
+    "• Cek hanya di cekbansos.kemensos.go.id atau tanya RT/pengurus.",
+  );
+  if (report.dasarVerifikasi) {
+    lines.push("", `_Dasar tinjauan: ${report.dasarVerifikasi}_`);
+  }
+  lines.push("", "_Peringatan Warta Warga — disebar setelah ditinjau pengurus. Identitas pelapor tidak disimpan._");
+  return lines.join("\n");
 }
 
 export default function ReportsPage() {
@@ -815,20 +841,38 @@ export default function ReportsPage() {
   };
 
   const handleBroadcast = async (report: Report) => {
-    const message = createBroadcastMessage(report);
+    setBroadcastingClusterId(report.id);
     try {
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(message);
+      const clustered = report as ClusteredReport;
+      const resp = await fetch("/api/reports/broadcast-cluster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: (clustered.clusterIds ?? [report.id]).map(Number),
+          wilayahTag: report.wilayahTag,
+          teksPeringatan: report.teksPeringatan || "",
+          kategori: report.category,
+          total: clustered.totalReporters ?? report.similarCount,
+          deskripsi: report.message,
+        }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        setBroadcastedIds((prev) => {
+          const next = new Set(prev);
+          next.add(report.id);
+          return next;
+        });
+        setBroadcastNotice(data.message || `✅ Broadcast untuk ${formatWilayah(report.wilayahTag)} berhasil dikirim.`);
+        fetchReportsData();
+      } else {
+        setBroadcastNotice(`Gagal: ${data.error || "unknown error"}`);
       }
-    } catch (error) {
-      console.error("Failed to copy broadcast draft:", error);
+    } catch {
+      setBroadcastNotice("Gagal menghubungi server. Coba lagi.");
+    } finally {
+      setBroadcastingClusterId(null);
     }
-    setBroadcastedIds((prev) => {
-      const next = new Set(prev);
-      next.add(report.id);
-      return next;
-    });
-    setBroadcastNotice(`Draft broadcast untuk ${formatWilayah(report.wilayahTag)} sudah dibuat dan disalin.`);
   };
 
   const handleBroadcastCluster = async (cluster: ClusteredReport) => {
@@ -1593,6 +1637,21 @@ export default function ReportsPage() {
                   placeholder="Bahaya: link ini terindikasi penipuan. Jangan klik atau bagikan."
                 />
               </div>
+
+              {/* Preview broadcast untuk PENIPUAN/MISINFORMASI */}
+              {(selectedReport.category === "PENIPUAN" || selectedReport.category === "MISINFORMASI") && (
+                <details className="rounded-2xl border border-black/[0.06] overflow-hidden">
+                  <summary className="cursor-pointer select-none px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-text-muted hover:bg-black/[0.02] transition-colors">
+                    Pratinjau teks broadcast ke WhatsApp
+                  </summary>
+                  <div className="border-t border-black/[0.06] bg-black/[0.01] px-4 pb-4 pt-3">
+                    <p className="mb-2 text-[10px] text-text-light">Ini persis isi pesan yang akan dikirim bot ke grup WhatsApp wilayah terkait:</p>
+                    <pre className="whitespace-pre-wrap rounded-xl bg-white border border-black/[0.06] p-3 text-[11px] leading-relaxed text-text-muted font-sans">
+                      {formatBroadcastPreview(selectedReport, selectedReport.totalReporters)}
+                    </pre>
+                  </div>
+                </details>
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -1600,17 +1659,24 @@ export default function ReportsPage() {
               {selectedReport.status === "PENDING" && (
                 <>
                   {(selectedReport.category === "PENIPUAN" || selectedReport.category === "MISINFORMASI") && (
-                    <button
-                      onClick={() => handleBroadcastCluster(selectedReport)}
-                      disabled={broadcastingClusterId === selectedReport.id}
-                      className="flex-1 rounded-2xl bg-amber-500 text-white text-sm font-bold py-3 px-5 hover:bg-amber-600 transition-all shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {broadcastingClusterId === selectedReport.id
-                        ? "Membuat poster..."
-                        : selectedReport.clusterIds?.length > 1
-                        ? `Buat poster & broadcast (${selectedReport.totalReporters} pelapor)`
-                        : "Buat poster & broadcast"}
-                    </button>
+                    selectedReport.totalReporters >= MIN_BROADCAST_REPORTERS ? (
+                      <button
+                        onClick={() => handleBroadcastCluster(selectedReport)}
+                        disabled={broadcastingClusterId === selectedReport.id}
+                        className="flex-1 rounded-2xl bg-amber-500 text-white text-sm font-bold py-3 px-5 hover:bg-amber-600 transition-all shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {broadcastingClusterId === selectedReport.id
+                          ? "Mengirim broadcast..."
+                          : `Validasi & broadcast (${selectedReport.totalReporters} pelapor)`}
+                      </button>
+                    ) : (
+                      <div className="flex-1 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
+                        <span className="font-bold">Belum cukup pelapor.</span>{" "}
+                        Kategori {selectedReport.category} butuh minimal {MIN_BROADCAST_REPORTERS} pelapor sebelum dapat dibroadcast.{" "}
+                        Saat ini <strong>{selectedReport.totalReporters}</strong> pelapor
+                        {" "}({MIN_BROADCAST_REPORTERS - selectedReport.totalReporters} lagi dibutuhkan).
+                      </div>
+                    )
                   )}
                   <button
                     onClick={() =>
@@ -1637,9 +1703,14 @@ export default function ReportsPage() {
               {selectedReport.status === "VERIFIED" && (
                 <button
                   onClick={() => handleBroadcast(selectedReport)}
-                  className="rounded-2xl bg-accent-blue/10 text-accent-blue text-sm font-bold py-3 px-5 hover:bg-accent-blue/20 transition-all cursor-pointer"
+                  disabled={broadcastingClusterId === selectedReport.id}
+                  className="rounded-2xl bg-accent-blue/10 text-accent-blue text-sm font-bold py-3 px-5 hover:bg-accent-blue/20 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {broadcastedIds.has(selectedReport.id) ? "Broadcast Disalin" : "Broadcast"}
+                  {broadcastingClusterId === selectedReport.id
+                    ? "Mengirim broadcast..."
+                    : broadcastedIds.has(selectedReport.id)
+                    ? "Sudah Disiarkan"
+                    : "Kirim Broadcast"}
                 </button>
               )}
               <button
