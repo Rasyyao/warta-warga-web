@@ -1,18 +1,9 @@
 import { NextResponse } from "next/server";
-
-const DASHBOARD_PORT = process.env.DASHBOARD_PORT || "3210";
-const BOT_DASHBOARD_URL =
-  process.env.BOT_DASHBOARD_URL ||
-  process.env.WARTA_WARGA_BOT_URL ||
-  `http://127.0.0.1:${DASHBOARD_PORT}`;
-
-function botDashboardEndpoint(path: string) {
-  return new URL(path, BOT_DASHBOARD_URL.endsWith("/") ? BOT_DASHBOARD_URL : `${BOT_DASHBOARD_URL}/`);
-}
+import { backendEndpoint } from "@/app/lib/backend";
 
 export async function POST() {
   try {
-    const res = await fetch(botDashboardEndpoint("wa/start"), {
+    const res = await fetch(backendEndpoint("wa/start"), {
       method: "POST",
       signal: AbortSignal.timeout(10_000),
     });

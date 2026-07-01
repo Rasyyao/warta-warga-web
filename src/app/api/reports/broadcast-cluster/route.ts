@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server";
 import { setApprovalLaporan } from "@/app/lib/db";
-
-const DASHBOARD_PORT = process.env.DASHBOARD_PORT || "3210";
-const BOT_DASHBOARD_URL =
-  process.env.BOT_DASHBOARD_URL ||
-  process.env.WARTA_WARGA_BOT_URL ||
-  `http://127.0.0.1:${DASHBOARD_PORT}`;
-
-function botDashboardEndpoint(path: string) {
-  return new URL(path, BOT_DASHBOARD_URL.endsWith("/") ? BOT_DASHBOARD_URL : `${BOT_DASHBOARD_URL}/`);
-}
+import { backendEndpoint } from "@/app/lib/backend";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -29,7 +20,7 @@ export async function POST(request: Request) {
 
   // Forward ke dashboard bot untuk broadcast langsung (generate poster + kirim ke grup WA).
   try {
-    const botResp = await fetch(botDashboardEndpoint("broadcast-cluster"), {
+    const botResp = await fetch(backendEndpoint("broadcast-cluster"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
