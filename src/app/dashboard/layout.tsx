@@ -14,6 +14,7 @@ export default function DashboardLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pendingReportsCount, setPendingReportsCount] = useState(0);
   const [isSystemActive, setIsSystemActive] = useState(true);
+  const [isTogglingAi, setIsTogglingAi] = useState(false);
 
   // Poll or fetch pending reports count periodically
   const updatePendingCount = () => {
@@ -37,6 +38,38 @@ export default function DashboardLayout({
     return () => clearInterval(interval);
   }, [pathname]);
 
+  // Tombol AI on/off: state sebenarnya dari tabel bot_settings (Supabase), dibaca bersama oleh
+  // backend bot (webhook kirimi.id / Baileys) — jadi kalau dimatikan di sini, bot beneran berhenti balas.
+  useEffect(() => {
+    fetch("/api/settings/ai")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setIsSystemActive(Boolean(data.enabled));
+      })
+      .catch((err) => console.error("Failed to fetch AI status:", err));
+  }, []);
+
+  const handleToggleAi = async () => {
+    if (isTogglingAi) return;
+    const next = !isSystemActive;
+    setIsTogglingAi(true);
+    setIsSystemActive(next); // optimistic
+    try {
+      const res = await fetch("/api/settings/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Gagal menyimpan.");
+    } catch (err) {
+      console.error("Failed to toggle AI status:", err);
+      setIsSystemActive(!next); // rollback
+    } finally {
+      setIsTogglingAi(false);
+    }
+  };
+
   const handleLogout = () => {
     router.push("/login");
   };
@@ -53,6 +86,8 @@ export default function DashboardLayout({
         return "Log Hasil Chat WhatsApp";
       case "/dashboard/agents":
         return "Pengaturan Parameter Agent";
+      case "/dashboard/whatsapp":
+        return "Koneksi WhatsApp";
       default:
         return "Admin Dashboard";
     }
@@ -70,11 +105,9 @@ export default function DashboardLayout({
       >
         {/* Brand Compartment */}
         <div className="flex h-16 items-center gap-3 border-b border-black/[0.06] px-6">
-          <span className="grid size-8 place-items-center rounded-full bg-primary text-sm font-extrabold text-white">
-            J
-          </span>
+          <img src="/logo.png" alt="WartaWarga Logo" className="size-8 object-contain" />
           <span className="text-[15px] font-extrabold tracking-[-0.02em]">
-            JagaWarga
+            WartaWarga
           </span>
           <span className="h-4 w-px bg-black/[.08]" />
           <img
@@ -119,6 +152,21 @@ export default function DashboardLayout({
                 {pendingReportsCount}
               </span>
             )}
+          </Link>
+
+          <Link
+            href="/dashboard/whatsapp"
+            onClick={() => setIsSidebarOpen(false)}
+            className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+              isActive("/dashboard/whatsapp")
+                ? "bg-primary/10 text-primary"
+                : "text-text-muted hover:bg-black/[0.02] hover:text-text-primary"
+            }`}
+          >
+            <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h2.28a1 1 0 01.948.684L9.5 7.5a1 1 0 01-.27 1.045L7.5 10.25a11.05 11.05 0 006.25 6.25l1.705-1.73a1 1 0 011.045-.27l3.816 1.272a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            </svg>
+            Koneksi WhatsApp
           </Link>
 
           <Link
@@ -175,10 +223,10 @@ export default function DashboardLayout({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-bold text-text-primary">
-                Admin JagaWarga
+                Admin WartaWarga
               </p>
               <p className="truncate text-[10px] text-text-muted">
-                admin@jagawarga.id
+                admin@wartawarga.id
               </p>
             </div>
             <button
@@ -213,15 +261,24 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-3">
-            {/* System Status Light */}
-            <span className="hidden items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary sm:flex">
+            {/* Tombol AI on/off */}
+            <button
+              onClick={handleToggleAi}
+              disabled={isTogglingAi}
+              title={isSystemActive ? "Klik untuk menonaktifkan AI" : "Klik untuk mengaktifkan AI"}
+              className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all disabled:opacity-60 sm:flex ${
+                isSystemActive
+                  ? "bg-primary/10 text-primary hover:bg-primary/20"
+                  : "bg-black/[0.06] text-text-muted hover:bg-black/[0.1]"
+              }`}
+            >
               <span
                 className={`size-1.5 rounded-full ${
                   isSystemActive ? "bg-primary animate-pulse" : "bg-text-muted"
                 }`}
               />
-              Sistem Aktif
-            </span>
+              {isSystemActive ? "Sistem Aktif" : "Sistem Nonaktif"}
+            </button>
 
             {/* Notification Bell */}
             <button className="relative grid size-9 place-items-center rounded-xl border border-black/[0.08] hover:bg-black/[0.02] transition-all">

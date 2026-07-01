@@ -27,7 +27,7 @@ export default function LoginPage() {
 
   const fillMockCredentials = () => {
     setUsername("admin");
-    setPassword("jagawarga2026");
+    setPassword("wartawarga2026");
   };
 
   return (
@@ -42,11 +42,13 @@ export default function LoginPage() {
         {/* Logos & Header */}
         <div className="mb-8 text-center">
           <div className="inline-flex items-center gap-3 rounded-2xl border border-black/[0.04] bg-white/80 p-3 shadow-sm backdrop-blur-md">
-            <span className="grid size-9 place-items-center rounded-full bg-primary text-base font-extrabold text-white shadow-[0_8px_20px_rgba(37,211,102,0.28)]">
-              J
-            </span>
+            <img
+              src="/logo.png"
+              alt="WartaWarga Logo"
+              className="size-9 object-contain drop-shadow-[0_8px_20px_rgba(37,211,102,0.28)]"
+            />
             <span className="text-lg font-extrabold tracking-[-0.02em] text-text-primary">
-              JagaWarga
+              WartaWarga
             </span>
             <span className="h-5 w-px bg-black/[.08]" />
             <img

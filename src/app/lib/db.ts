@@ -234,6 +234,28 @@ export async function deleteSumberCrawl(id: number): Promise<boolean> {
   return true;
 }
 
+// ── bot_settings (tombol AI on/off dashboard) ─────────────────────────────────
+// Dibaca/ditulis bersama dengan backend bot (Warta-Warga/src/db/index.js getSetting/setSetting) —
+// satu tabel Supabase yang sama, jadi flag ini langsung berlaku di webhook kirimi.id / Baileys.
+
+export async function getAiEnabled(): Promise<boolean> {
+  const { data, error } = await getSupabase()
+    .from("bot_settings")
+    .select("value")
+    .eq("key", "ai_enabled")
+    .maybeSingle();
+  if (error) { console.error("getAiEnabled:", error.message); return true; }
+  return data ? data.value !== "false" : true;
+}
+
+export async function setAiEnabled(enabled: boolean): Promise<boolean> {
+  const { error } = await getSupabase()
+    .from("bot_settings")
+    .upsert({ key: "ai_enabled", value: String(enabled), updated_ts: new Date().toISOString() }, { onConflict: "key" });
+  if (error) { console.error("setAiEnabled:", error.message); return false; }
+  return true;
+}
+
 // ── sources_whitelist CRUD ────────────────────────────────────────────────────
 
 export async function getSourcesWhitelistList(): Promise<SourcesWhitelist[]> {

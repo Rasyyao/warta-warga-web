@@ -228,7 +228,6 @@ export default function OverviewPage() {
   const [ragSources, setRagSources] = useState<RagSource[]>([]);
   const [regionalCounts, setRegionalCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isSystemActive, setIsSystemActive] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
 
   const fetchOverviewData = () => {
@@ -289,7 +288,7 @@ export default function OverviewPage() {
         body: JSON.stringify({
           id: Number(id),
           statusApproval: "disetujui",
-          teksPeringatan: "🚨 BAHAYA! Link terverifikasi PENIPUAN oleh Admin JagaWarga.",
+          teksPeringatan: "🚨 BAHAYA! Link terverifikasi PENIPUAN oleh Admin WartaWarga.",
         }),
       });
       fetchOverviewData();

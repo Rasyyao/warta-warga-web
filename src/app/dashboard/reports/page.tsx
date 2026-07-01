@@ -346,7 +346,7 @@ function createVerificationSummary(report: Report) {
 
 function createBroadcastMessage(report: Report) {
   return [
-    `Info JagaWarga - ${formatWilayah(report.wilayahTag)}`,
+    `Info WartaWarga - ${formatWilayah(report.wilayahTag)}`,
     "",
     `Status laporan: ${report.status === "VERIFIED" ? "TERVALIDASI ADMIN" : "BELUM VALID"}`,
     `Kategori: ${report.category}`,
@@ -818,7 +818,7 @@ export default function ReportsPage() {
     const resolvedWarning =
       teksPeringatan.trim() ||
       (targetReport
-        ? `Laporan ${targetReport.category.toLowerCase()} di ${formatWilayah(targetReport.wilayahTag)} sudah divalidasi admin JagaWarga. Mohon jangan sebarkan tautan atau klaim serupa sebelum ada sumber resmi.`
+        ? `Laporan ${targetReport.category.toLowerCase()} di ${formatWilayah(targetReport.wilayahTag)} sudah divalidasi admin WartaWarga. Mohon jangan sebarkan tautan atau klaim serupa sebelum ada sumber resmi.`
         : "");
 
     setReports((prev) =>
