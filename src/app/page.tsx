@@ -686,7 +686,9 @@ function WhatsAppDemo() {
           </div>
 
           <a
-            href="#"
+            href="https://wa.me/6287856246042"
+            target="_blank"
+            rel="noopener noreferrer"
             className="mt-9 inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-primary/95 px-7 py-3.5 text-sm font-semibold text-white shadow-[0_16px_34px_rgba(37,211,102,0.22)] backdrop-blur-md transition hover:bg-primary-dark active:scale-95"
           >
             <Icon name="whatsapp" className="size-5" />
