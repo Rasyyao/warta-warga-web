@@ -105,9 +105,9 @@ export default function DashboardLayout({
       >
         {/* Brand Compartment */}
         <div className="flex h-16 items-center gap-3 border-b border-black/[0.06] px-6">
-          <img src="/logo.png" alt="WartaWarga Logo" className="size-8 object-contain" />
+          <img src="/logo.png" alt="WargaAI Logo" className="size-8 object-contain" />
           <span className="text-[15px] font-extrabold tracking-[-0.02em]">
-            WartaWarga
+            WargaAI
           </span>
           <span className="h-4 w-px bg-black/[.08]" />
           <img
@@ -223,10 +223,10 @@ export default function DashboardLayout({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-bold text-text-primary">
-                Admin WartaWarga
+                Admin WargaAI
               </p>
               <p className="truncate text-[10px] text-text-muted">
-                admin@wartawarga.id
+                admin@wargaai.id
               </p>
             </div>
             <button

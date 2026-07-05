@@ -11,7 +11,7 @@ export default function AgentsPage() {
       <div className="rounded-[24px] border border-black/[0.06] bg-white p-6 shadow-sm space-y-6">
         <h3 className="text-base font-bold text-text-primary">LLM Parameter Toggles</h3>
         <p className="text-xs text-text-muted leading-relaxed">
-          Sesuaikan parameter perilaku 2-Agent pipeline WartaWarga untuk mengontrol akurasi dan kreativitas respons model.
+          Sesuaikan parameter perilaku 2-Agent pipeline WargaAI untuk mengontrol akurasi dan kreativitas respons model.
         </p>
 
         <div className="space-y-6 border-t border-black/[0.06] pt-6">

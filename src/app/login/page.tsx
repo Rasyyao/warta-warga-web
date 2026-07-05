@@ -44,11 +44,11 @@ export default function LoginPage() {
           <div className="inline-flex items-center gap-3 rounded-2xl border border-black/[0.04] bg-white/80 p-3 shadow-sm backdrop-blur-md">
             <img
               src="/logo.png"
-              alt="WartaWarga Logo"
+              alt="WargaAI Logo"
               className="size-9 object-contain drop-shadow-[0_8px_20px_rgba(37,211,102,0.28)]"
             />
             <span className="text-lg font-extrabold tracking-[-0.02em] text-text-primary">
-              WartaWarga
+              WargaAI
             </span>
             <span className="h-5 w-px bg-black/[.08]" />
             <img
@@ -130,17 +130,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Quick Mock Fill Option */}
-          <div className="mt-6 border-t border-black/[0.06] pt-5 text-center">
-            <button
-              type="button"
-              onClick={fillMockCredentials}
-              className="text-xs font-semibold text-primary hover:text-primary-dark transition-all"
-            >
-              Gunakan Akun Demo (admin)
-            </button>
-          </div>
         </div>
 
         {/* Back Link */}

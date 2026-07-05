@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WartaWarga | Platform Verifikasi Warga Berbasis AI",
+  title: "WargaAI | Platform Verifikasi Warga Berbasis AI",
   description:
-    "WartaWarga adalah platform AI berbasis 2-Agent pipeline dengan integrasi Komdigi TrustPositif untuk membantu masyarakat mendeteksi hoaks, penipuan, dan melakukan pengaduan resmi via WhatsApp.",
+    "WargaAI adalah platform AI berbasis 2-Agent pipeline dengan integrasi Komdigi TrustPositif untuk membantu masyarakat mendeteksi hoaks, penipuan, dan melakukan pengaduan resmi via WhatsApp.",
 };
 
 export default function RootLayout({

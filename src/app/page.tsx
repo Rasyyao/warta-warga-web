@@ -17,6 +17,31 @@ const stats = [
   { value: "<3 detik", label: "Rata-rata respons" },
 ];
 
+// 3 fitur utama WargaAI — selaras dgn greeting bot WhatsApp (src/agent2/handler.js di repo Warta-Warga).
+const mainFeatures = [
+  {
+    icon: "shield",
+    tone: "bg-accent-red",
+    title: "JagaWarga",
+    tagline: "Cek hoaks dan penipuan",
+    desc: "Kirim kabar, link, atau foto yang kamu ragukan — dibandingkan langsung ke database resmi (Komdigi TrustPositif, Kemensos) untuk tahu aman, belum pasti, atau berbahaya.",
+  },
+  {
+    icon: "megaphone",
+    tone: "bg-primary",
+    title: "WartaWarga",
+    tagline: "Sebarin informasi bansos dan program pemerintah terbaru",
+    desc: "Tanya syarat, jadwal, atau cara daftar program bantuan sosial — dijawab dari sumber resmi (.go.id/Kemensos), lengkap dengan tautan sumbernya.",
+  },
+  {
+    icon: "document",
+    tone: "bg-accent-blue",
+    title: "LaporWarga",
+    tagline: "Laporin aduan kamu terkait layanan sampai aduan internet",
+    desc: "Dari penipuan yang lagi marak, layanan publik (jalan rusak, listrik mati, air PDAM), sampai konten internet yang meresahkan — diteruskan ke portal resmi/pengurus setelah ditinjau.",
+  },
+];
+
 const features = [
   {
     icon: "whatsapp",
@@ -97,7 +122,7 @@ const sourceRepos = [
   {
     label: "Web Dashboard",
     href: "https://github.com/Rasyyao/warta-warga-web.git",
-    desc: "Landing page dan dashboard publik WartaWarga.",
+    desc: "Landing page dan dashboard publik WargaAI.",
   },
   {
     label: "AI Agent",
@@ -189,6 +214,7 @@ export default function Home() {
     <main className="relative min-h-screen overflow-hidden bg-white font-sans text-text-primary">
       <FloatingNavbar />
       <HeroSection />
+      <MainFeatures />
       <FeatureGrid />
       <AgentPipeline />
       <RegionalRadar />
@@ -215,15 +241,15 @@ function FloatingNavbar() {
         <a
           href="#"
           className="flex min-w-0 items-center gap-2 sm:gap-3 justify-self-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-          aria-label="WartaWarga home"
+          aria-label="WargaAI home"
         >
           <img
             src="/logo.png"
-            alt="WartaWarga Logo"
+            alt="WargaAI Logo"
             className="size-8 sm:size-9 object-contain drop-shadow-[0_8px_20px_rgba(37,211,102,0.28)]"
           />
           <span className="text-[15px] sm:text-lg font-extrabold tracking-[-0.02em] text-text-primary">
-            WartaWarga
+            WargaAI
           </span>
           <span className="h-5 w-px bg-black/[.08]" />
           <img
@@ -289,7 +315,7 @@ function HeroSection() {
           </h1>
 
           <p className="mt-8 max-w-xl animate-[fade-up_0.7s_ease-out_0.16s_both] text-base leading-[1.75] text-text-muted sm:text-[17px]">
-            WartaWarga membantu masyarakat memverifikasi informasi, mendeteksi
+            WargaAI membantu masyarakat memverifikasi informasi, mendeteksi
             penipuan, melaporkan layanan publik, dan memperoleh informasi
             bantuan langsung melalui WhatsApp.
           </p>
@@ -390,7 +416,7 @@ function HeroVisual() {
               <Icon name="whatsapp" className="size-4.5" />
             </span>
             <div className="min-w-0">
-              <p className="text-xs font-bold leading-tight">WartaWarga Bot</p>
+              <p className="text-xs font-bold leading-tight">WargaAI Bot</p>
               <div className="relative h-4 overflow-hidden text-[10px] text-white/65">
                 {validationScenarios.map((scenario, index) => (
                   <p
@@ -573,6 +599,43 @@ function StatsStrip() {
   );
 }
 
+function MainFeatures() {
+  return (
+    <section className="relative isolate bg-white px-6 py-20 sm:py-24 lg:px-20 lg:py-28">
+      <SectionGridBackdrop />
+      <div className="relative z-10 mx-auto max-w-[1200px]">
+        <SectionHeading
+          eyebrow="3 Fitur Utama"
+          title="Halo, aku WargaAI dari TemanWarga"
+          desc="Aku bisa bantuin kamu untuk 3 hal lewat WhatsApp — dari cek hoaks sampai bantu urus aduan resmi."
+        />
+
+        <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-3">
+          {mainFeatures.map((feature) => (
+            <article
+              key={feature.title}
+              className="rounded-card border border-black/[.06] bg-white p-7 shadow-[0_2px_20px_rgba(0,0,0,0.05)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_8px_32px_rgba(0,0,0,0.10)]"
+            >
+              <div className={`grid size-14 place-items-center rounded-icon ${feature.tone} text-white shadow-md`}>
+                <Icon name={feature.icon as IconName} className="size-7" />
+              </div>
+              <h3 className="mt-6 text-[22px] font-bold tracking-[-0.02em] text-text-primary">
+                {feature.title}
+              </h3>
+              <p className="mt-1 text-sm font-semibold text-primary-dark">
+                {feature.tagline}
+              </p>
+              <p className="mt-3 text-[15px] leading-[1.65] text-text-muted">
+                {feature.desc}
+              </p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FeatureGrid() {
   return (
     <section id="fitur" className="relative isolate bg-[#f5faf7] px-6 py-20 sm:py-24 lg:px-20 lg:py-28">
@@ -581,7 +644,7 @@ function FeatureGrid() {
         <SectionHeading
           eyebrow="Fitur"
           title="Dibangun untuk semua warga"
-          desc="Dari pengguna biasa hingga pemerintah daerah, WartaWarga menjawab kebutuhan siapa saja."
+          desc="Dari pengguna biasa hingga pemerintah daerah, WargaAI menjawab kebutuhan siapa saja."
         />
 
         <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -834,7 +897,7 @@ function SourceRepos() {
             Kode sumber terbuka
           </h2>
           <p className="mt-4 max-w-md text-[15px] leading-[1.7] text-text-muted">
-            Lihat repository web dan agent utama yang menjalankan pengalaman WartaWarga.
+            Lihat repository web dan agent utama yang menjalankan pengalaman WargaAI.
           </p>
         </div>
 
@@ -875,9 +938,9 @@ function Footer() {
         <div className="grid gap-10 border-b border-black/[.08] pb-12 md:grid-cols-2 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
           <div>
             <a href="#" className="flex items-center gap-3">
-              <img src="/logo.png" alt="WartaWarga Logo" className="size-10 object-contain" />
+              <img src="/logo.png" alt="WargaAI Logo" className="size-10 object-contain" />
               <span className="text-xl font-extrabold tracking-[-0.02em]">
-                WartaWarga
+                WargaAI
               </span>
               <span className="h-6 w-px bg-black/[.08]" />
               <img
@@ -925,7 +988,7 @@ function Footer() {
 
         <div className="overflow-hidden pt-12 -mx-6 lg:-mx-20 [mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]">
           <p className="select-none text-[clamp(80px,15vw,260px)] font-extrabold leading-none tracking-[-0.06em] bg-gradient-to-b from-primary to-[#128c7e] bg-clip-text text-transparent text-center w-full px-4">
-            WartaWarga
+            WargaAI
           </p>
         </div>
         <p className="pb-8 text-xs text-text-light">
@@ -1074,7 +1137,7 @@ function PhoneMockup() {
               <Icon name="whatsapp" className="size-5" />
             </span>
             <div>
-              <p className="text-sm font-bold">WartaWarga Bot</p>
+              <p className="text-sm font-bold">WargaAI Bot</p>
               <p className="text-xs text-white/70">powered by kirimi.id</p>
             </div>
           </div>
