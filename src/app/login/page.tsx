@@ -10,24 +10,34 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (username.trim() === "" || password.trim() === "") {
+      setError("Username dan password wajib diisi.");
+      return;
+    }
     setIsLoading(true);
     setError("");
 
-    setTimeout(() => {
-      if (username.trim() === "" || password.trim() === "") {
-        setError("Username dan password wajib diisi.");
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.error || "Username atau password salah.");
         setIsLoading(false);
-      } else {
-        router.push("/dashboard");
+        return;
       }
-    }, 600);
-  };
-
-  const fillMockCredentials = () => {
-    setUsername("admin");
-    setPassword("wartawarga2026");
+      const next = new URLSearchParams(window.location.search).get("next") || "/dashboard";
+      router.push(next);
+      router.refresh();
+    } catch {
+      setError("Gagal terhubung ke server. Coba lagi.");
+      setIsLoading(false);
+    }
   };
 
   return (
