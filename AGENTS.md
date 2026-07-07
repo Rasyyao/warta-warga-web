@@ -8,16 +8,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <claude-mem-context>
 # Memory Context
 
-# [warta-warga-web] recent context, 2026-06-29 11:38am GMT+7
+# [warta-warga-web] recent context, 2026-07-07 12:52pm GMT+7
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (18,119t read) | 552,457t work | 97% savings
+Stats: 50 obs (18,127t read) | 553,297t work | 97% savings
 
 ### Jun 26, 2026
-427 10:45a 🔵 Warta Warga — WhatsApp AI Agent App Landing Page Project Initiated
 428 10:46a ⚖️ Warta Warga Landing Page — CoreShift Dribbble Design Chosen as Visual Reference
 429 " 🟣 Warta Warga Landing Page — Next.js Project Bootstrapped with Custom Metadata and Base Styles
 430 10:48a 🟣 Warta Warga Landing Page — Full page.tsx Implemented with 5 Sections and 3 Reusable Components
@@ -47,6 +46,7 @@ S45 Warta Warga Web — Hero Visual Animated Validation Demo (fix messy UI, cycl
 449 11:24a 🟣 Warta Warga — Animated Hoax Validation Chat Demo UI Requested
 450 " 🟣 Warta Warga — validationScenarios Data Added to page.tsx for Animated Demo
 451 11:25a 🟣 Warta Warga — HeroVisual Refactored to Cycling Animated Validation Demo
+S48 Supabase Timeout Fixed — URL-Encoded Password Decoded Before postgres.js Connection (Jun 26 at 11:26 AM)
 ### Jun 27, 2026
 452 2:21p 🔵 warta-warga-web Dashboard API Architecture — Supabase Postgres with Sandbox Fallback
 453 " 🔵 warta-warga-web .env Has SUPABASE_DB_URL with URL-Encoded Password Containing Special Characters
@@ -68,13 +68,15 @@ S45 Warta Warga Web — Hero Visual Animated Validation Demo (fix messy UI, cycl
 479 1:05a 🔵 Supabase Connection URL Has URL-Encoded Special Characters in Password
 480 1:06a 🔴 Supabase Timeout Fixed — URL-Encoded Password Decoded Before postgres.js Connection
 481 " 🔴 Leaflet Map Init Error Fixed — Container Guard and dbError Early Return Added
-S48 Supabase Timeout Fixed — URL-Encoded Password Decoded Before postgres.js Connection (Jun 28 at 1:06 AM)
 482 1:12a 🔵 warta-warga-web — Supabase "Service Unavailable" Error Reported
 483 1:13a 🔵 warta-warga-web — Supabase Service Unavailable Error
 484 " 🔵 warta-warga-web — Supabase Service Unavailable Error Encountered
 485 1:14a 🔵 warta-warga-web Supabase Connection Returns Service Unavailable
 486 " 🔵 warta-warga-web — Supabase Service Unavailable Error Under Investigation
 487 1:15a 🔴 warta-warga-web Build Fixed — Replaced getSqlConnection with Supabase JS Client in page.tsx
+### Jun 29, 2026
+546 6:28p 🟣 Warta-Warga Landing Page Design Initiative — CoreShift Dribbble Reference
+S56 Warta-Warga Landing Page Design Initiative — CoreShift Dribbble Reference (Jun 29 at 6:28 PM)
 
-Access 552k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 553k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
